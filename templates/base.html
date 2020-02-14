@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Box Office Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css')}}">
+</head>
+
+<body>
+    <h1>Box Office Dashboard</h1>
+
+    <div class='dashboard-grid'>
+        <div id='top-ten-movies'>
+            <h2>Top 10 Highest Grossing Films</h2>
+            <h4>Avg: <span id="gross-average"></span></h4>
+            <ol id="gross-movies">
+            </ol>
+        </div>
+
+        <div id='top-ten-movies-by-studio'>
+            <h2>Top 10 by <span id="studio-name">Studio</span>
+                <select id='studio-select' onchange="selectGrossing()">
+                </select>
+            </h2>
+            <h4>Avg: <span id="studio-average"></span></h4>
+            <ol id='studio-movies'>
+            </ol>
+        </div>
+
+        <div id='top-ten-movies-by-opening-weekend'>
+            <h2>Top 10 by Opening Weekend Gross</h2>
+            <h4>Avg: <span id="opening-average"></span></h4>
+            <ol id="opening-movies">
+            </ol>
+        </div>
+
+        <div id='movie-list-complete'></div>
+    </div>
+    <script>
+        var movies;
+
+        // Helper function to format numbers with commas and '$'.
+        function formatNumbers(number, currency) {
+            if (number) {
+                number = number.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+                if (currency) {
+                    number = '$' + number;
+                }
+            }
+            return number
+        }
+
+        // Get the movies via AJAX from API collection once DOM Content is all loaded.
+        document.addEventListener('DOMContentLoaded', function () {
+            var request = new XMLHttpRequest();
+
+            request.onreadystatechange = function () {
+                if (request.readyState === XMLHttpRequest.DONE) {
+                    if (request.status === 200) {
+                        movies = JSON.parse(request.responseText);
+                        // Use a custom event to trigger the population of when
+                        // they are loaded.
+                        window.dispatchEvent(new Event('moviesLoaded'));
+                    }
+                }
+            }
+
+            request.open('GET', "{{ url_for('movies') }}");
+            request.send();
+        });
+
+        // Load the tables.
+        var movieListDiv = document.getElementById('movie-list-complete');
+        var top10grossing = document.getElementById('top-ten-movies');
+        var top10studio = document.getElementById('top-ten-movies-by-studio');
+        var top10opening = document.getElementById('top-ten-movies-by-opening-weekend');
+
+        // Custom event handler fired once movies are all loaded via AJAX.
+        window.addEventListener('moviesLoaded', function (e) {
+            var movieTable = document.createElement('table');
+            var grossingTable = document.createElement('table');
+            var openingTable = document.createElement('table');
+
+            var header = document.createElement('tr');
+            var titleHead = document.createElement('th');
+            titleHead.textContent = 'Title';
+            var studioHead = document.createElement('th');
+            studioHead.textContent = 'Studio';
+            var totalGrossHead = document.createElement('th');
+            totalGrossHead.textContent = 'Total Gross';
+            var totalTheatersHead = document.createElement('th');
+            totalTheatersHead.textContent = 'Total Theaters';
+            var openingGrossHead = document.createElement('th');
+            openingGrossHead.textContent = 'Opening Gross';
+            var openingTheatersHead = document.createElement('th');
+            openingTheatersHead.textContent = 'Opening Theaters';
+
+            header.append(titleHead);
+            header.append(studioHead);
+            header.append(totalGrossHead);
+            header.append(totalTheatersHead);
+            header.append(openingGrossHead);
+            header.append(openingTheatersHead);
+            movieTable.append(header);
+
+            var openingArray = [];
+            var studios = [];
+            movies.forEach(function (item, idx, arr) {
+
+                var mRow = document.createElement('tr');
+                var mTitle = document.createElement('td');
+                var mStudio = document.createElement('td');
+                var mTotalGross = document.createElement('td');
+                var mTotalTheaters = document.createElement('td');
+                var mOpeningGross = document.createElement('td');
+                var mOpeningTheaters = document.createElement('td');
+
+                mTitle.textContent = item.title;
+                mStudio.textContent = item.studio;
+                studios.push(item.studio);
+                mTotalGross.textContent = formatNumbers(item.total_gross, true);
+                mTotalTheaters.textContent = formatNumbers(item.total_theaters, false);
+                mOpeningGross.textContent = formatNumbers(item.opening_gross, true);
+                if (item.opening_gross) {
+                    var opening = { title: item.title, openingGrossing: formatNumbers(item.opening_gross, true).replace(/[$,]/g, "") };
+                    openingArray.push(opening);
+                }
+                mOpeningTheaters.textContent = formatNumbers(item.opening_theaters, false);
+
+                mRow.append(mTitle);
+                mRow.append(mStudio);
+                mRow.append(mTotalGross);
+                mRow.append(mTotalTheaters);
+                mRow.append(mOpeningGross);
+                mRow.append(mOpeningTheaters);
+
+                movieTable.append(mRow);
+            });
+
+            // construct the options for select
+            studios = studios.filter(function (item, pos, self) {
+                return self.indexOf(item) == pos;
+            })
+            var select = document.getElementById('studio-select');
+            studios.forEach(function (element) {
+                var choice = document.createElement('option');
+                choice.textContent = element;
+                select.append(choice);
+            });
+
+            // display top 10 highest grossing table
+            var grossingArray = movies.map(function (movie) { return { title: movie.title, total_gross: movie.total_gross } });
+            var avg_gross = document.getElementById("gross-average");
+            grossingArray.sort(function (a, b) { return b.total_gross - a.total_gross });
+            grossingArray = grossingArray.slice(0, 10);
+            const avg_grossing = grossingArray.reduce((total, grossing) => parseInt(total, 10) + parseInt(grossing.total_gross, 10), 0) / grossingArray.length;
+            avg_gross.append(formatNumbers(avg_grossing, true));
+            grossingArray.forEach(function (element) {
+                var gRow = document.createElement('tr');
+                var gTitle = document.createElement('td');
+                var gTotal = document.createElement('td');
+
+                gTitle.textContent = element.title;
+                gTotal.textContent = formatNumbers(element.total_gross, true);
+                gRow.append(gTitle);
+                gRow.append(gTotal);
+                grossingTable.append(gRow);
+            });
+
+            // display top 10 total opening weekend gross table
+            var avg_open = document.getElementById("opening-average");
+            openingArray.sort(function (a, b) { return b.openingGrossing - a.openingGrossing });
+            openingArray = openingArray.slice(0, 10);
+            const avg_opening = openingArray.reduce((total, opening) => parseInt(total, 10) + parseInt(opening.openingGrossing, 10), 0) / openingArray.length;
+            avg_open.append(formatNumbers(avg_opening, true));
+            openingArray.forEach(function (element) {
+                var oRow = document.createElement('tr');
+                var oTitle = document.createElement('td');
+                var oTotal = document.createElement('td');
+
+                oTitle.textContent = element.title;
+                if (element.openingGrossing) {
+                    oTotal.textContent = formatNumbers(element.openingGrossing, true);
+                }
+                oRow.append(oTitle);
+                oRow.append(oTotal);
+                openingTable.append(oRow);
+            });
+            top10opening.append(openingTable);
+            top10grossing.append(grossingTable);
+            movieListDiv.append(movieTable);
+        });
+
+        // closure
+        var makeFilterFunc = function (studio_name) {
+            var func = function (x) { return x.studio == studio_name };
+            return func;
+        }
+
+        // onlick: select
+        var studioTable = document.createElement('table');
+        function selectGrossing() {
+            var selectAvg = document.getElementById("studio-average");
+            selectAvg.innerHTML = '';
+            studioTable.innerHTML = '';
+            var studio = document.getElementById("studio-select").value;
+            var filter_func = makeFilterFunc(studio);
+            // closure
+            var list = movies.filter(filter_func);
+
+            list.sort(function (a, b) { return b.total_gross - a.total_gross });
+            list = list.slice(0, 10);
+            var avg_select = list.reduce((total, select) => parseInt(total, 10) + parseInt(select.total_gross, 10), 0) / list.length;
+            avg_select = Math.round(avg_select * 100) / 100;
+            selectAvg.append(formatNumbers(avg_select, true));
+
+            list.forEach(function (element) {
+                var sRow = document.createElement('tr');
+                var sTitle = document.createElement('td');
+                var sTotal = document.createElement('td');
+
+                sTitle.textContent = element.title;
+                sTotal.textContent = formatNumbers(element.total_gross, true);
+                sRow.append(sTitle);
+                sRow.append(sTotal);
+                studioTable.append(sRow);
+            });
+            top10studio.append(studioTable);
+        }
+    </script>
+</body>
+
+</html>
